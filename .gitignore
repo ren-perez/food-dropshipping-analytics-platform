@@ -1,0 +1,6 @@
+.venv
+.env
+data
+ecommerce-app
+ecommerce-app.*
+logs
