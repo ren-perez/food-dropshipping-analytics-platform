@@ -13,10 +13,11 @@ POSTHOG_API_KEY = os.getenv("POSTHOG_API_KEY", "")
 POSTHOG_PROJECT_ID = os.getenv("POSTHOG_PROJECT_ID", "")
 DUCKDB_PATH = os.getenv("DUCKDB_PATH", "data/warehouse.duckdb")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1000"))
+RAW_DIR = Path("data/raw/posthog")  # Bronze layer root
 
 
 class PostHogConnector:
-    """Connector for PostHog Query API"""
+    """Connector for PostHog Query API with parquet file creation"""
 
     def __init__(self, api_key: str, project_id: str):
         self.api_key = api_key
@@ -27,7 +28,10 @@ class PostHogConnector:
             "Content-Type": "application/json"
         }
 
-    def fetch_events_batch(self, since: datetime, until: datetime, batch_size: int = BATCH_SIZE, offset: int = 0) -> List[Dict]:
+    def fetch_events_batch(
+        self, since: datetime, until: datetime,
+        batch_size: int = BATCH_SIZE, offset: int = 0
+    ) -> List[Dict]:
         since_str = since.strftime('%Y-%m-%d %H:%M:%S')
         until_str = until.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -56,6 +60,32 @@ class PostHogConnector:
             print(f"Error fetching data: {e}")
             return []
 
+    def save_events_to_parquet(self, target_date: datetime) -> int:
+        """Fetch events for a date and save as parquet files"""
+        since = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        until = since + timedelta(days=1)
+
+        # Output directory like ./data/raw/posthog/2025/08/25/
+        out_dir = RAW_DIR / f"{since.year}/{since.month:02d}/{since.day:02d}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        batch_idx = 0
+        total_events = 0
+        
+        while True:
+            events = self.fetch_events_batch(since, until, BATCH_SIZE, batch_idx * BATCH_SIZE)
+            if not events:
+                break
+                
+            df = pd.DataFrame(events)
+            parquet_path = out_dir / f"batch_{batch_idx:04d}.parquet"
+            df.to_parquet(parquet_path, index=False)
+            print(f"Saved {len(df)} events → {parquet_path}")
+            total_events += len(df)
+            batch_idx += 1
+
+        return total_events
+
 
 class DuckDBHandler:
     """DuckDB warehouse operations with schema management"""
@@ -70,52 +100,15 @@ class DuckDBHandler:
             conn.execute("CREATE SCHEMA IF NOT EXISTS raw;")
             conn.execute("CREATE SCHEMA IF NOT EXISTS analytics;")
 
-    def insert_events(self, events: List[Dict], table_name: str = "raw.posthog_events"):
-        if not events:
-            print("No events to insert.")
-            return 0
-
-        df = pd.DataFrame(events)
-
+    def create_external_view(self, target_date: datetime):
+        """Register Parquet files in DuckDB by date"""
+        path = RAW_DIR / f"{target_date.year}/{target_date.month:02d}/{target_date.day:02d}/*.parquet"
         with duckdb.connect(self.db_path) as conn:
-            # Create table if not exists
             conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table_name} AS 
-                SELECT * FROM df LIMIT 1
+                CREATE OR REPLACE VIEW raw.posthog_events AS
+                SELECT * FROM read_parquet('{path}')
             """)
-            # Insert rows
-            conn.execute(f"INSERT INTO {table_name} SELECT * FROM df")
-            return len(events)
-
-    def delete_events(self, condition: Optional[str] = None, table_name: str = "raw.posthog_events"):
-        with duckdb.connect(self.db_path) as conn:
-            schema, table = table_name.split(".")
-
-            try:
-                # Use DuckDB's system catalog to check for table existence
-                result = conn.execute(f"""
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = '{schema}'
-                    AND table_name = '{table}'
-                    LIMIT 1;
-                """).fetchone()
-
-                if not result:
-                    print(f"Table {table_name} does not exist. Skipping delete.")
-                    return
-
-                # Proceed with deletion
-                if condition:
-                    query = f"DELETE FROM {table_name} WHERE {condition};"
-                else:
-                    query = f"DELETE FROM {table_name};"
-                conn.execute(query)
-                print(f"Deleted events from {table_name} with condition: {condition or 'ALL'}")
-
-            except Exception as e:
-                print(f"Unexpected error while deleting events: {e}")
-                raise
+        print(f"Created view raw.posthog_events over {path}")
 
 
 class BatchProcessor:
@@ -130,32 +123,21 @@ class BatchProcessor:
             target_date = datetime.now(UTC)
 
         since = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        until = since + timedelta(days=1)
+        
+        print(f"Processing events for {since.date()}")
 
-        print(f"Processing events for {since} → {until}")
+        # Save events to parquet files
+        total_events = self.posthog.save_events_to_parquet(target_date)
 
-        # 1. Clean existing rows for this day
-        self.duckdb.delete_events(
-            condition=f"timestamp >= '{since.isoformat()}' AND timestamp < '{until.isoformat()}'"
-        )
+        # Register files into DuckDB as external view
+        if total_events > 0:
+            self.duckdb.create_external_view(since)
 
-        # 2. Fetch from PostHog
-        all_events = []
-        offset = 0
-        while True:
-            events = self.posthog.fetch_events_batch(since, until, BATCH_SIZE, offset)
-            if not events:
-                break
-            all_events.extend(events)
-            offset += BATCH_SIZE
-
-        # 3. Insert into DuckDB
-        inserted = self.duckdb.insert_events(all_events)
-        print(f"Inserted {inserted} events.")
-        return inserted
+        print(f"Total events saved for {since.date()}: {total_events}")
+        return total_events
 
 
 if __name__ == "__main__":
     processor = BatchProcessor()
     n_events = processor.run_daily_sync()
-    print(f"Total events loaded: {n_events}")
+    print(f"Total events processed: {n_events}")
