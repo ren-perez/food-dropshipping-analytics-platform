@@ -1,0 +1,8 @@
+food_dropship_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../data/warehouse.duckdb     # relative to dbt/ directory
+      threads: 4
+      extensions: ["parquet", "json"]    # auto-load these (for parquet & JSON funcs)

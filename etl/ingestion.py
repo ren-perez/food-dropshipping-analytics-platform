@@ -2,6 +2,7 @@ import os
 import requests
 import duckdb
 import pandas as pd
+import json
 from datetime import datetime, timedelta, UTC
 from dotenv import load_dotenv
 from typing import Optional, List, Dict
@@ -78,6 +79,8 @@ class PostHogConnector:
                 break
                 
             df = pd.DataFrame(events)
+            if 'properties' in df.columns:
+                df['properties'] = df['properties'].apply(lambda x: json.dumps(x) if isinstance(x, dict) else x)
             parquet_path = out_dir / f"batch_{batch_idx:04d}.parquet"
             df.to_parquet(parquet_path, index=False)
             print(f"Saved {len(df)} events → {parquet_path}")
@@ -130,8 +133,8 @@ class BatchProcessor:
         total_events = self.posthog.save_events_to_parquet(target_date)
 
         # Register files into DuckDB as external view
-        if total_events > 0:
-            self.duckdb.create_external_view(since)
+        # if total_events > 0:
+        #     self.duckdb.create_external_view(since)
 
         print(f"Total events saved for {since.date()}: {total_events}")
         return total_events
