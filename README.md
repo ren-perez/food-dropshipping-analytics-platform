@@ -46,12 +46,18 @@ It demonstrates a modern data stack with event ingestion, transformation, and an
 
 ```
 food-dropship-analytics/
-├── shop/            # nextjs app
-├── data/                      # raw exports (csv/parquet), duckdb file
-├── dbt/                       # dbt project
-├── etl/                       # simple ingestion scripts
-├── metabase/                  # docker-compose + plugins
+├── docker-compose.yml          # root compose orchestrating all containers
+├── shop/                       # Next.js app for fake shop
+├── etl/                        # ingestion.py
+├── dbt/                        # dbt project
+├── data/
+│   ├── warehouse.duckdb        # DuckDB warehouse
+│   └── raw/posthog/...         # Parquet files
+├── metabase/
+│   ├── Dockerfile              # custom Debian image
+│   └── plugins/
 └── README.md
+
 ```
 
 ### dbt Models structure

@@ -1,6 +1,37 @@
-.venv
-.env
 data
 ecommerce-app
 ecommerce-app.*
 logs
+
+# --- DBT-related ignores ---
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/manifest.json
+dbt/run_results.json
+dbt/profiles.yml
+dbt/.dbt/
+
+# Python-related
+*.pyc
+__pycache__/
+
+# VSCode settings (if using VSCode)
+.vscode/
+
+# Environment files
+.env
+.env.*
+
+# Jupyter notebooks (if used for analysis/debugging)
+*.ipynb
+
+# Ignore virtual environments (if created locally)
+.venv/
+venv/
+
+# Ignore compiled SQL (optional, only if you store it elsewhere)
+compiled/
+
+# Ignore dbt Cloud specific cache (if applicable)
+.dbt/
