@@ -1,6 +1,4 @@
-# dbt/models/staging/sources.yml
-version: 2
-
+# dbt/models/sources/sources.yml
 sources:
   - name: raw
     schema: raw
