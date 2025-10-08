@@ -1,0 +1,20 @@
+# dbt/models/staging/sources.yml
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: posthog_events
+        description: "Raw PostHog events data"
+        columns:
+          - name: user_id
+            description: "Unique identifier for the user"
+          - name: event_time
+            description: "Timestamp of the event"
+          - name: event_standard
+            description: "Standardized event type"
+          - name: event_properties
+            description: "Additional properties associated with the event"
+          - name: event_source
+            description: "Source of the event (e.g., web, mobile)"

@@ -2,6 +2,7 @@ data
 ecommerce-app
 ecommerce-app.*
 logs
+postgres
 
 # --- DBT-related ignores ---
 dbt/target/

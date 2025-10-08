@@ -1,0 +1,84 @@
+services:
+
+  postgres:
+    container_name: postgres
+    image: postgres:16
+    ports:
+     - 5432:5432
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: db_user
+      POSTGRES_PASSWORD: db_password
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data
+      - ./postgres/airflow_init.sql:/docker-entrypoint-initdb.d/airflow_init.sql
+    networks:
+      - default
+    
+
+  # metabase:
+  #   build:
+  #     context: ./metabase
+  #   container_name: metaduck
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     MB_PLUGINS_DIR: /home/plugins
+  #     MB_DB_FILE: /home/metabase-data/metabase.db
+  #   volumes:
+  #     - ./metabase/plugins:/home/plugins
+  #     - ./metabase/metabase-data:/home/metabase-data
+  #     - ./data:/data
+  #   restart: unless-stopped
+
+  # shop:
+  #   container_name: shop
+  #   # no build
+  #   image: node:20  # optional, just for containerized dev
+  #   ports:
+  #     - "4000:3000"
+  #   volumes:
+  #     - ./shop:/app
+  #   working_dir: /app
+  #   command: yarn dev
+
+
+  airflow:
+    container_name: airflow
+    image: apache/airflow:3.0.6
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow_db
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      # AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      # AIRFLOW__CORE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      # - ./data:/opt/airflow/data
+      - ./dbt:/opt/airflow/dbt
+    depends_on:
+      - postgres
+    networks:
+      - default
+    restart: unless-stopped
+    command: >
+      bash -c "airflow db migrate && airflow standalone"
+
+  dbt:
+    container_name: dbt
+    image: ghcr.io/dbt-labs/dbt-postgres:1.9.latest
+    volumes:
+      - ./dbt/food_dropship_analytics:/usr/app/dbt
+      - ./dbt:/root/.dbt
+      - ./data:/usr/app/data
+    working_dir: /usr/app/dbt
+    depends_on:
+      - postgres
+    networks:
+      - default
+    command: run
+
+networks:
+  default:
+    driver: bridge

@@ -1,8 +1,12 @@
 food_dropship_analytics:
-  target: dev
   outputs:
     dev:
-      type: duckdb
-      path: ../data/warehouse.duckdb     # relative to dbt/ directory
+      dbname: db
+      host: postgres
+      pass: db_password
+      port: 5432
+      schema: dev
       threads: 4
-      extensions: ["parquet", "json"]    # auto-load these (for parquet & JSON funcs)
+      type: postgres
+      user: db_user
+  target: dev

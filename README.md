@@ -46,17 +46,30 @@ It demonstrates a modern data stack with event ingestion, transformation, and an
 
 ```
 food-dropship-analytics/
-├── docker-compose.yml          # root compose orchestrating all containers
-├── shop/                       # Next.js app for fake shop
-├── etl/                        # ingestion.py
-├── dbt/                        # dbt project
-├── data/
-│   ├── warehouse.duckdb        # DuckDB warehouse
-│   └── raw/posthog/...         # Parquet files
-├── metabase/
-│   ├── Dockerfile              # custom Debian image
-│   └── plugins/
-└── README.md
+├── docker-compose.yml           # Root Compose file orchestrating all services
+├── README.md                    # Project overview and usage instructions
+
+├── shop/                        # Frontend: Fake shop built with Next.js
+│   └── ...                      # Next.js source code (pages/, components/, etc.)
+
+├── etl/                         # ETL scripts for data ingestion
+│   ├── ingestion.py             # Entry point for ETL job
+│   ├── fetch_api.py             # Fetches data from PostHog API
+│   └── utils.py                 # (Optional) Shared ETL utilities
+
+├── dbt/                         # dbt project for transformations
+│   └── ...                      # dbt models, profiles, etc.
+
+├── data/                        # Local data storage
+│   ├── warehouse.duckdb         # DuckDB local warehouse
+│   └── raw/
+│       └── posthog/             # Raw PostHog data in Parquet format
+
+├── metabase/                    # Metabase analytics/BI
+│   ├── Dockerfile               # Custom Metabase image (Debian-based)
+│   └── plugins/                 # Metabase plugins (e.g., DuckDB driver)
+
+└── .git/                        # Git repository initialized at project root
 
 ```
 
@@ -65,6 +78,7 @@ food-dropship-analytics/
 ```
 dbt/models/
 ├── staging/
+│   └── raw_posthog_events.sql
 │   └── stg_posthog_events.sql
 ├── core/
 │   ├── fact_events.sql
